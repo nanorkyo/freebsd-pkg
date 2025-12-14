@@ -512,6 +512,8 @@ format_sql_condition(const char *str, xstring *sqlcond, bool for_remote)
 	unsigned int bracket_level = 0;
 	const char *sqlop;
 	bool collate_nocase = false;
+	bool in_clause = false;
+	bool multiline_subquery = false;
 
 	fprintf(sqlcond->fp, " WHERE ");
 	while (str[0] != '\0') {
@@ -584,6 +586,175 @@ format_sql_condition(const char *str, xstring *sqlcond, bool for_remote)
 						goto bad_option;
 					fprintf(sqlcond->fp, "vital");
 					state = OPERATOR_INT;
+					break;
+				case 'd':
+					if (str[1] == 'o') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM deps AS d WHERE d.package_id=p.id AND origin");
+						str++;
+					} else if (str[1] == 'v') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM deps AS d WHERE d.package_id=p.id AND version");
+						str++;
+					} else {
+						if (str[1] == 'n')
+							str++;
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM deps AS d WHERE d.package_id=p.id AND name");
+					}
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
+					break;
+				case 'r':
+					if (str[1] == 'o') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM packages AS p2 JOIN deps AS d ON d.package_id=p2.id WHERE d.name=p.name AND p2.origin");
+						str++;
+					} else if (str[1] == 'v') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM packages AS p2 JOIN deps AS d ON d.package_id=p2.id WHERE d.name=p.name AND p2.version");
+						str++;
+					} else {
+						if (str[1] == 'n')
+							str++;
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM packages AS p2 JOIN deps AS d ON d.package_id=p2.id WHERE d.name=p.name AND p2.name");
+					}
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
+					break;
+				case 'C':
+					if (str[1] == 'n')
+						str++;
+					fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM categories AS c JOIN pkg_categories AS pc ON c.id=pc.category_id WHERE pc.package_id=p.id AND c.name");
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
+					break;
+				case 'F':
+					if (for_remote)
+						goto bad_option;
+					if (str[1] == 's') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM files AS f WHERE f.package_id=p.id AND sha256");
+						str++;
+					} else if (str[1] == 'u') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM files AS f WHERE f.package_id=p.id AND uname");
+						str++;
+					} else if (str[1] == 'g') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM files AS f WHERE f.package_id=p.id AND gname");
+						str++;
+					} else if (str[1] == 'm') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM files AS f WHERE f.package_id=p.id AND perm");
+						multiline_subquery = true;
+						state = OPERATOR_INT;
+						str++;
+						break;
+					} else if (str[1] == 'f') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM files AS f WHERE f.package_id=p.id AND fflags");
+						multiline_subquery = true;
+						state = OPERATOR_INT;
+						str++;
+						break;
+					} else if (str[1] == 't') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM files AS f WHERE f.package_id=p.id AND mtime");
+						multiline_subquery = true;
+						state = OPERATOR_INT;
+						str++;
+						break;
+					} else if (str[1] == 'l') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM files AS f WHERE f.package_id=p.id AND symlink_target");
+						str++;
+					} else {
+						if (str[1] == 'p')
+							str++;
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM files AS f WHERE f.package_id=p.id AND path");
+					}
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
+					break;
+				case 'S': /* FALLTHROUGH */
+				case 'D':
+					if (for_remote)
+						goto bad_option;
+					if (str[1] == 'u') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM directories AS d JOIN pkg_directories AS pd ON d.id=pd.directory_id WHERE pd.package_id=p.id AND d.uname");
+						str++;
+					} else if (str[1] == 'g') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM directories AS d JOIN pkg_directories AS pd ON d.id=pd.directory_id WHERE pd.package_id=p.id AND d.gname");
+						str++;
+					} else if (str[1] == 'm') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM directories AS d JOIN pkg_directories AS pd ON d.id=pd.directory_id WHERE pd.package_id=p.id AND d.perm");
+						multiline_subquery = true;
+						state = OPERATOR_INT;
+						str++;
+						break;
+					} else if (str[1] == 'f') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM directories AS d JOIN pkg_directories AS pd ON d.id=pd.directory_id WHERE pd.package_id=p.id AND d.fflags");
+						multiline_subquery = true;
+						state = OPERATOR_INT;
+						str++;
+						break;
+					} else {
+						if (str[1] == 'p')
+							str++;
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM directories AS d JOIN pkg_directories AS pd ON d.id=pd.directory_id WHERE pd.package_id=p.id AND d.path");
+					}
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
+					break;
+				case 'O':
+					if (str[1] == 'k') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM option AS o JOIN pkg_option AS po ON o.option_id=po.option_id WHERE po.package_id=p.id AND o.option");
+						str++;
+					} else if (str[1] == 'v') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM pkg_option AS po WHERE po.package_id=p.id AND po.value");
+						str++;
+					} else if (str[1] == 'd') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM pkg_option AS po WHERE po.package_id=p.id AND po.default_value");
+						str++;
+					} else if (str[1] == 'D') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM option_desc AS od JOIN pkg_option AS po ON od.option_id=po.option_id WHERE po.package_id=p.id AND od.description");
+						str++;
+					} else {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM option AS o JOIN pkg_option AS po ON o.option_id=po.option_id WHERE po.package_id=p.id AND o.option || ': ' || po.value");
+					}
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
+					break;
+				case 'L':
+					fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM licenses AS l JOIN pkg_licenses AS pl ON l.id=pl.license_id WHERE pl.package_id=p.id AND l.name");
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
+					break;
+				case 'U':
+					if (for_remote)
+						goto bad_option;
+					fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM users AS u JOIN pkg_users AS pu ON u.id=pu.user_id WHERE pu.package_id=p.id AND u.name");
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
+					break;
+				case 'G':
+					if (for_remote)
+						goto bad_option;
+					fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM groups AS g JOIN pkg_groups AS pg ON g.id=pg.group_id WHERE pg.package_id=p.id AND g.name");
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
+					break;
+				case 'B':
+					fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM shlibs AS s JOIN pkg_shlibs_required AS ps ON s.id=ps.shlib_id WHERE ps.package_id=p.id AND s.name");
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
+					break;
+				case 'b':
+					fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM shlibs AS s JOIN pkg_shlibs_provided AS ps ON s.id=ps.shlib_id WHERE ps.package_id=p.id AND s.name");
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
+					break;
+				case 'A':
+					if (str[1] == 't') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM annotation AS a JOIN pkg_annotation AS pa ON a.annotation_id=pa.tag_id WHERE pa.package_id=p.id AND a.annotation");
+						str++;
+					} else if (str[1] == 'v') {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM annotation AS a JOIN pkg_annotation AS pa ON a.annotation_id=pa.value_id WHERE pa.package_id=p.id AND a.annotation");
+						str++;
+					} else {
+						fprintf(sqlcond->fp, "EXISTS (SELECT 1 FROM pkg_annotation AS pa JOIN annotation AS t ON pa.tag_id=t.annotation_id JOIN annotation AS v ON pa.value_id=v.annotation_id WHERE pa.package_id=p.id AND t.annotation || ': ' || v.annotation");
+					}
+					multiline_subquery = true;
+					state = OPERATOR_STRING;
 					break;
 				case '#': /* FALLTHROUGH */
 				case '?':
@@ -707,6 +878,15 @@ bad_option:
 				}
 				state = NEXT_IS_STRING;
 				fprintf(sqlcond->fp, " GLOB ");
+			} else if ((str[0] == 'i' || str[0] == 'I') && (str[1] == 'n' || str[1] == 'N')) {
+				str++;
+				fprintf(sqlcond->fp, " IN (");
+				in_clause = true;
+				if (state == OPERATOR_STRING) {
+					state = NEXT_IS_STRING;
+				} else {
+					state = NEXT_IS_INT;
+				}
 			} else if (str[0] == '>' || str[0] == '<') {
 				if (state != OPERATOR_INT) {
 					fprintf(stderr, "> expected only for integers\n");
@@ -781,6 +961,14 @@ bad_option:
 		} else if (state == INT) {
 			if (!isdigit(str[0])) {
 				state = POST_EXPR;
+				if (in_clause) {
+					fprintf(sqlcond->fp, ")");
+					in_clause = false;
+				}
+				if (multiline_subquery) {
+					fprintf(sqlcond->fp, ")");
+					multiline_subquery = false;
+				}
 				str--;
 			} else {
 				fprintf(sqlcond->fp, "%c", str[0]);
@@ -794,6 +982,14 @@ bad_option:
 				if (collate_nocase) {
 					fprintf(sqlcond->fp, " COLLATE NOCASE ");
 					collate_nocase = false;
+				}
+				if (in_clause) {
+					fprintf(sqlcond->fp, ")");
+					in_clause = false;
+				}
+				if (multiline_subquery) {
+					fprintf(sqlcond->fp, ")");
+					multiline_subquery = false;
 				}
 			} else {
 				fprintf(sqlcond->fp, "%c", str[0]);
@@ -811,6 +1007,14 @@ bad_option:
 		if (collate_nocase) {
 			fprintf(sqlcond->fp, " COLLATE NOCASE ");
 			collate_nocase = false;
+		}
+		if (in_clause) {
+			fprintf(sqlcond->fp, ")");
+			in_clause = false;
+		}
+		if (multiline_subquery) {
+			fprintf(sqlcond->fp, ")");
+			multiline_subquery = false;
 		}
 	}
 
