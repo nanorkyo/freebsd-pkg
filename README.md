@@ -1,68 +1,39 @@
 pkg - a package manager for FreeBSD
 ====================================
 
- * Sourcehut FreeBSD: [![builds.sr.ht status](https://builds.sr.ht/~bapt/pkg/commits/master/freebsd.svg)](https://builds.sr.ht/~bapt/pkg/commits/master/freebsd?)
- * Sourcehut Alpine: [![builds.sr.ht status](https://builds.sr.ht/~bapt/pkg/commits/master/alpine.svg)](https://builds.sr.ht/~bapt/pkg/commits/master/alpine?)
- * Sourcehut Debian: [![builds.sr.ht status](https://builds.sr.ht/~bapt/pkg/commits/master/debian.svg)](https://builds.sr.ht/~bapt/pkg/commits/master/debian?)
- * Github Actions: [![build](https://github.com/freebsd/pkg/actions/workflows/build.yaml/badge.svg)](https://github.com/freebsd/pkg/actions/workflows/build.yaml)
 
-Table of Contents:
-------------------
+Motivation:
+-----------
 
-* [libpkg](#libpkg)
-* [pkg package format](#pkgfmt)
-* [Installing packages](#pkginst)
-* [pkg bootstrap](#pkgbootstrap)
-* [Additional resources](#resources)
+目標： lang/python311 に依存しているパッケージを lang/python312 に移行するために、明示的にインストールしたパッケージの一覧を調査するためです。
+この一覧に基づいて pkg delete -y lang/python311 を実行、その後 lang/python312 に依存する状態で、必要最小限のパッケージをインストールを目指します。
 
+Objective: To identify explicitly installed packages that depend on lang/python311 in order to migrate them to lang/python312.
+Based on this list, the plan is to run pkg delete -y lang/python311 and then reinstall the minimal set of packages built against lang/python312.
 
-<a name="libpkg"></a>
-### libpkg
+現状： この一覧は極単純に、下記のコマンドを実行すれば得られます。
 
-pkg is built on top of libpkg, a new library to interface with the package
-registration backends.
-It abstracts package management details such as registration, remote
-repositories, package creation, updating, etc.
+Current Situation: This list can be obtained simply by running the following command via pkg shell:
 
-<a name="pkgfmt"></a>
-### pkg package format
+```
+pkg shell "SELECT p.origin FROM packages AS p JOIN deps AS d ON p.id = d.package_id WHERE p.automatic = 0 AND d.origin = 'lang/python311'"
+```
 
-The `pkg` package format is a tar archive that may be raw or compressed using one of the following algorithms: `gz`, `bzip2`, `zstd`, or `xz`. The default compression algorithm is `zstd`.
+このクエリーは pkg query -e では一発で実行できません。下記のように awk を組み合わせる必要があります。
 
-The tar archive itself is composed of two types of elements:
+However, this cannot be executed directly using a single pkg query -e command. It currently requires piping to awk as shown below:
 
-* the special files at the beginning of the archive, starting with a "+"
-* the data.
+```
+pkg query -e "%a = 0" "%do %o" | awk '/^lang\/python311/{ print $2 }'
+```
 
-<a name="pkginst"></a>
-### Installing packages
+これは EVALUATION FORMAT において、`%do` を指定して問い合わせすることができないためです。
+そこで `in` オペレーターを追加してこれらの調査ができるよう改修します。
 
-pkg can install a package archive from the local disk, remote HTTP server or
-remote SSH server.
+This is because `%do` cannot be used within the EVALUATION FORMAT string.
+Proposal: Therefore, I propose extending the EVALUATION FORMAT by adding an `in` operator to enable this type of query natively.
 
-<a name="pkgbootstrap"></a>
-### Pkg bootstrap
+Status:
+-------
 
-All supported versions of FreeBSD now contain /usr/sbin/pkg a.k.a
-*pkg(7)*.  This is a small placeholder that has just the minimum
-functionality required to install the real pkg(8).
-
-To use, simply run any pkg(8) command line.  pkg(7) will intercept the
-command, and if you confirm that is your intention, download the
-pkg(8) tarball, install pkg(8) from it, bootstrap the local package
-database and then proceed to run the command you originally requested.
-
-More recent versions of pkg(7) understand `pkg -N` as a test to see if
-pkg(8) is installed without triggering the installation, and
-conversely, `pkg bootstrap [-f]` to install pkg(8) (or force it to be
-reinstalled) without performing any other actions.
-
-<a name="resources"></a>
-### Additional resources
-
-* The Git repository of [pkg is hosted on GitHub](https://github.com/freebsd/pkg)
-
-To contact us, you can find us in the **#pkg** channel on [Libera Chat IRC Network](https://libera.chat/).
-
-If you hit a bug when using pkg, you can always submit an issue in the
-[pkg issue tracker](https://github.com/freebsd/pkg/issues).
+AI generated; not reviewed by humans
