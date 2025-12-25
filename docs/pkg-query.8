@@ -330,6 +330,30 @@ Message of the package (type string)
 Timestamp that the package was installed (type integer)
 .It Cm \&%i
 Additional information about the package (type string)
+.It Cm \&%d Ns Op nov
+Dependency of the package (type list of strings)
+.It Cm \&%r Ns Op nov
+Reverse dependency of the package (type list of strings)
+.It Cm \&%C
+Category of the package (type list of strings)
+.It Cm \&%F Ns Op sugmftlp
+File of the package (type list of strings or integers)
+.It Cm \&%D Ns Op ugmfp
+Directory of the package (type list of strings or integers)
+.It Cm \&%O Ns Op kvdD
+Option of the package (type list of strings)
+.It Cm \&%L
+License of the package (type list of strings)
+.It Cm \&%U
+User of the package (type list of strings)
+.It Cm \&%G
+Group of the package (type list of strings)
+.It Cm \&%B
+Required shared library of the package (type list of strings)
+.It Cm \&%b
+Provided shared library of the package (type list of strings)
+.It Cm \&%A Ns Op tv
+Annotation of the package (type list of strings)
 .It Cm \&%# Ns Op drCFODLUGBbA
 Number of elements in the list of information (type integer).
 See
@@ -374,6 +398,13 @@ is not equal to the given number or string.
 The value of
 .Va var
 is not equal case insensitive to the given number or string.
+.It Va var Cm in Oo Ar num | Ar string Oc
+The value of
+.Va var
+matches the given number or string (case insensitive).
+If
+.Va var
+is a list, returns true if one of its elements is equal to the given number or string.
 .El
 .Sh ENVIRONMENT
 The following environment variables affect the execution of
